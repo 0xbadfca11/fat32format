@@ -18,9 +18,9 @@
 #include <windows.h>
 #include <winioctl.h>
 
-// Start of first data cluster is ALIGNING_SIZE * 3.
-// | ALIGNING_SIZE | ALIGNING_SIZE | ALIGNING_SIZE |
-// | BPB,FSInfo,.. | FAT1          | FAT2          | Cluster0
+// Start of first data cluster is ALIGNING_SIZE * ( N * 2 + 1 ).
+// | ALIGNING_SIZE | ALIGNING_SIZE * N | ALIGNING_SIZE * N |
+// | BPB,FSInfo,.. | FAT1              | FAT2              | Cluster0
 static constexpr unsigned ALIGNING_SIZE = 1024 * 1024;
 
 #pragma pack(push, 1)
@@ -334,10 +334,10 @@ int format_volume ( PCSTR vol, const format_params* params )
 	  NULL                           // OVERLAPPED structure
 	);
 
-	if ( !bRet )
-        printf ( "Failed to allow extended DASD on device" );
+	if( !bRet )
+		puts( "Failed to allow extended DASD on device" );
 	else
-		printf ( "FSCTL_ALLOW_EXTENDED_DASD_IO OK\n" ); 
+		puts( "FSCTL_ALLOW_EXTENDED_DASD_IO OK" );
 
     // lock it
     bRet = DeviceIoControl( hDevice, FSCTL_LOCK_VOLUME, NULL, 0, NULL, 0, &cbRet, NULL );
@@ -360,8 +360,8 @@ int format_volume ( PCSTR vol, const format_params* params )
         &cbRet, NULL);
 
 	if ( !bRet )
-    {
-		printf ( "IOCTL_DISK_GET_PARTITION_INFO failed, trying IOCTL_DISK_GET_PARTITION_INFO_EX\n" );
+	{
+		puts( "IOCTL_DISK_GET_PARTITION_INFO failed, trying IOCTL_DISK_GET_PARTITION_INFO_EX" );
 		bRet = DeviceIoControl ( hDevice, 
 			IOCTL_DISK_GET_PARTITION_INFO_EX,
 			NULL, 0, &xpiDrive, sizeof(xpiDrive),
@@ -403,6 +403,25 @@ int format_volume ( PCSTR vol, const format_params* params )
         // understand this. Perhaps a future version of FAT32 and FASTFAT will handle this.
         die ( "This drive is too big for FAT32 - max 2TB supported\n" );
     }
+
+	STORAGE_PROPERTY_QUERY Query = { StorageAccessAlignmentProperty, PropertyStandardQuery };
+	STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR Alignment = {};
+	if( DeviceIoControl(
+		hDevice,
+		IOCTL_STORAGE_QUERY_PROPERTY,
+		&Query,
+		sizeof Query,
+		&Alignment,
+		sizeof Alignment,
+		&cbRet,
+		NULL
+		) )
+	{
+		if( Alignment.BytesOffsetForSectorAlignment )
+			puts( "Warning This disk has 'alignment offset'" );
+		if( piDrive.StartingOffset.QuadPart && piDrive.StartingOffset.QuadPart % Alignment.BytesPerPhysicalSector )
+			puts( "Warning This partition isn't aligned" );
+	}
 
 	FAT_BOOTSECTOR32* pFAT32BootSect = (FAT_BOOTSECTOR32*) VirtualAlloc ( NULL, BytesPerSect, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE );
 	FAT_FSINFO* pFAT32FsInfo = (FAT_FSINFO*) VirtualAlloc( NULL, BytesPerSect, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE );
@@ -505,7 +524,7 @@ int format_volume ( PCSTR vol, const format_params* params )
 	// Now we're commited - print some info first
     printf ( "Size : %gGB %lu sectors\n", (double) (piDrive.PartitionLength.QuadPart / (1000*1000*1000)), TotalSectors );
     printf ( "%lu Bytes Per Sector, Cluster size %lu bytes\n", BytesPerSect, SectorsPerCluster*BytesPerSect );
-    printf ( "Volume ID is %lx:%lx\n", VolumeId>>16, VolumeId&0xffff );
+	printf( "Volume ID is %04lx:%04lx\n", VolumeId >> 16, VolumeId & 0xffff );
 	if( params->volume_label )
 	{
 		printf( "Volume Label is %.*s\n", (int)sizeof( FAT_BOOTSECTOR32::sVolLab ), params->volume_label );
@@ -530,7 +549,7 @@ int format_volume ( PCSTR vol, const format_params* params )
 	ULONG SystemAreaSize = ( pFAT32BootSect->wRsvdSecCnt + ( pFAT32BootSect->bNumFATs * FatSize ) + SectorsPerCluster );
     printf ( "Clearing out %lu sectors for Reserved sectors, fats and root cluster...\n", SystemAreaSize );
 	zero_sectors( hDevice, 0, BytesPerSect, SystemAreaSize );
-    printf ( "Initialising reserved sectors and FATs...\n" );
+	puts( "Initialising reserved sectors and FATs..." );
 	// Now we should write the boot sector and fsinfo twice, once at 0 and once at the backup boot sect position
 	for( int i = 0; i < 2; i++ )
 	{
@@ -546,7 +565,7 @@ int format_volume ( PCSTR vol, const format_params* params )
 		write_sect( hDevice, SectorStart, BytesPerSect, pFirstSectOfFat, 1 );
 	}
 
-	int i = 0;
+	unsigned i = 0;
 	if( params->volume_label )
 	{
 		memset( pFAT32BootSect->sVolLab, ' ', sizeof( FAT_BOOTSECTOR32::sVolLab ) );
@@ -559,7 +578,9 @@ int format_volume ( PCSTR vol, const format_params* params )
 	{
 		memcpy( pFAT32Directory[i].DIR_Name, "AUTORUN INF", sizeof( FAT_DIRECTORY::DIR_Name ) );
 		pFAT32Directory[i].DIR_Attr = FILE_ATTRIBUTE_DEVICE | FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM;
+		i++;
 	}
+	_ASSERTE( i < BytesPerSect / sizeof( FAT_DIRECTORY ) );
 	write_sect( hDevice, pFAT32BootSect->wRsvdSecCnt + pFAT32BootSect->bNumFATs * FatSize, BytesPerSect, pFAT32Directory, 1 );
 
     // The filesystem recogniser in Windows XP doesn't use the partition type - in can be 
