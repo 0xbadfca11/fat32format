@@ -16,6 +16,7 @@
 #include <regex>
 
 #include <windows.h>
+#include <versionhelpers.h>
 #include <winioctl.h>
 
 // Start of first data cluster is ALIGNING_SIZE * ( N * 2 + 1 ).
@@ -404,23 +405,26 @@ int format_volume ( PCSTR vol, const format_params* params )
         die ( "This drive is too big for FAT32 - max 2TB supported\n" );
     }
 
-	STORAGE_PROPERTY_QUERY Query = { StorageAccessAlignmentProperty, PropertyStandardQuery };
-	STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR Alignment = {};
-	if( DeviceIoControl(
-		hDevice,
-		IOCTL_STORAGE_QUERY_PROPERTY,
-		&Query,
-		sizeof Query,
-		&Alignment,
-		sizeof Alignment,
-		&cbRet,
-		NULL
-		) )
+	if( IsWindowsVistaOrGreater() )
 	{
-		if( Alignment.BytesOffsetForSectorAlignment )
-			puts( "Warning This disk has 'alignment offset'" );
-		if( piDrive.StartingOffset.QuadPart && piDrive.StartingOffset.QuadPart % Alignment.BytesPerPhysicalSector )
-			puts( "Warning This partition isn't aligned" );
+		STORAGE_PROPERTY_QUERY Query = { StorageAccessAlignmentProperty, PropertyStandardQuery };
+		STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR Alignment = {};
+		if( DeviceIoControl(
+			hDevice,
+			IOCTL_STORAGE_QUERY_PROPERTY,
+			&Query,
+			sizeof Query,
+			&Alignment,
+			sizeof Alignment,
+			&cbRet,
+			NULL
+			) )
+		{
+			if( Alignment.BytesOffsetForSectorAlignment )
+				puts( "Warning This disk has 'alignment offset'" );
+			if( piDrive.StartingOffset.QuadPart && piDrive.StartingOffset.QuadPart % Alignment.BytesPerPhysicalSector )
+				puts( "Warning This partition isn't aligned" );
+		}
 	}
 
 	FAT_BOOTSECTOR32* pFAT32BootSect = (FAT_BOOTSECTOR32*) VirtualAlloc ( NULL, BytesPerSect, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE );
