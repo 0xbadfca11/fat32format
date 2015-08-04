@@ -422,7 +422,7 @@ int format_volume ( PCSTR vol, const format_params* params )
 		{
 			if( Alignment.BytesOffsetForSectorAlignment )
 				puts( "Warning This disk has 'alignment offset'" );
-			if( piDrive.StartingOffset.QuadPart && piDrive.StartingOffset.QuadPart % Alignment.BytesPerPhysicalSector )
+			if( piDrive.StartingOffset.QuadPart > 0 && piDrive.StartingOffset.QuadPart % Alignment.BytesPerPhysicalSector )
 				puts( "Warning This partition isn't aligned" );
 		}
 	}
@@ -459,6 +459,11 @@ int format_volume ( PCSTR vol, const format_params* params )
     pFAT32BootSect->dFATSz32 = FatSize;
     
     pFAT32BootSect->dBS_VolID = VolumeId;
+	if( params->volume_label )
+	{
+		memset( pFAT32BootSect->sVolLab, ' ', sizeof( FAT_BOOTSECTOR32::sVolLab ) );
+		_memccpy( pFAT32BootSect->sVolLab, params->volume_label, '\0', sizeof( FAT_BOOTSECTOR32::sVolLab ) );
+	}
     ((BYTE*)pFAT32BootSect)[510] = 0x55;
     ((BYTE*)pFAT32BootSect)[511] = 0xaa;
 
@@ -543,7 +548,7 @@ int format_volume ( PCSTR vol, const format_params* params )
     printf ( "%lu Free Clusters\n", pFAT32FsInfo->dFree_Count );
     // Work out the Cluster count
     
-
+	_ASSERTE( ( pFAT32BootSect->wRsvdSecCnt + ( pFAT32BootSect->bNumFATs * FatSize ) ) % ( ALIGNING_SIZE / BytesPerSect ) == 0 );
     
     printf ( "Formatting drive %s...\n",vol  );
 
@@ -572,8 +577,6 @@ int format_volume ( PCSTR vol, const format_params* params )
 	unsigned i = 0;
 	if( params->volume_label )
 	{
-		memset( pFAT32BootSect->sVolLab, ' ', sizeof( FAT_BOOTSECTOR32::sVolLab ) );
-		_memccpy( pFAT32BootSect->sVolLab, params->volume_label, '\0', sizeof( FAT_BOOTSECTOR32::sVolLab ) );
 		memcpy( pFAT32Directory[i].DIR_Name, pFAT32BootSect->sVolLab, sizeof( FAT_DIRECTORY::DIR_Name ) );
 		pFAT32Directory[i].DIR_Attr = FAT_DIRECTORY::ATTR_VOLUME_ID;
 		i++;
@@ -698,7 +701,7 @@ int main(int argc, char* argv[])
 			size_t len;
 			if( ( len = strlen( argv[i] ) ) >= 3 )
 			{
-				if( len - 2 > sizeof( FAT_BOOTSECTOR32::sVolLab ) )
+				if( len - 2/* -l */ > sizeof( FAT_BOOTSECTOR32::sVolLab ) )
 					puts( "Warning: truncate volume label." );
 				p.volume_label = &argv[i][2];
 			}
