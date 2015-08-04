@@ -88,7 +88,7 @@
       <GenerateDebugInformation>Debug</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
       <LargeAddressAware>true</LargeAddressAware>
-      <AdditionalOptions>/PDBALTPATH:$(Configuration)\%_PDB% %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/PDBALTPATH:%_PDB% %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -99,13 +99,13 @@
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Link>
-      <GenerateDebugInformation>Debug</GenerateDebugInformation>
+      <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <LargeAddressAware>true</LargeAddressAware>
       <SetChecksum>true</SetChecksum>
-      <AdditionalOptions>/PDBALTPATH:$(Configuration)\%_PDB% %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/PDBALTPATH:%_PDB% %(AdditionalOptions)</AdditionalOptions>
       <MinimumRequiredVersion>5.1</MinimumRequiredVersion>
     </Link>
   </ItemDefinitionGroup>
@@ -119,7 +119,7 @@
     <Link>
       <GenerateDebugInformation>Debug</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
-      <AdditionalOptions>/PDBALTPATH:$(Platform)\$(Configuration)\%_PDB% %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/PDBALTPATH:%_PDB% %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -130,12 +130,12 @@
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Link>
-      <GenerateDebugInformation>Debug</GenerateDebugInformation>
+      <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <SetChecksum>true</SetChecksum>
-      <AdditionalOptions>/PDBALTPATH:$(Platform)\$(Configuration)\%_PDB% %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/PDBALTPATH:%_PDB% %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
