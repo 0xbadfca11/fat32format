@@ -35,10 +35,11 @@ use -p.
 You can not open, read, write, rename, move or delete on Windows OS.
 Only re-format can delete this. (or delete from non-Windows OS)
 
-NOTE: This behavior is undocumented. Can't guarantee to be also same from now on.
+NOTE: This behavior is undocumented. 
+It does not guarantee also be the same behavior in the future.
 
 ### Source no longer support VC++2013 or older.
-to be lazy
+to be lazy.
 
 ## LICENSE
 GPL
