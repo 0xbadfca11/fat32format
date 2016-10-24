@@ -133,7 +133,7 @@ struct format_params
 	int sectors_per_cluster = 0;        // can be zero for default or 1,2,4,8,16,32 or 64
 	bool make_protected_autorun = false;
 	bool all_yes = false;
-	PCSTR volume_label = nullptr;
+	char volume_label[sizeof(FAT_BOOTSECTOR32::sVolLab) + 1] = {};
 };
 
 [[noreturn]]
@@ -315,7 +315,7 @@ int format_volume(PCSTR vol, const format_params* params)
 	HANDLE hDevice = CreateFileA(
 		vol,
 		GENERIC_READ | GENERIC_WRITE,
-		0,
+		FILE_SHARE_READ | FILE_SHARE_WRITE,
 		NULL,
 		OPEN_EXISTING,
 		FILE_FLAG_NO_BUFFERING,
@@ -325,13 +325,13 @@ int format_volume(PCSTR vol, const format_params* params)
 		die("Failed to open device - close any files before formatting and make sure you have Admin rights when using fat32format\n Are you SURE you're formatting the RIGHT DRIVE!!!");
 
 	bRet = DeviceIoControl(
-		(HANDLE)hDevice,              // handle to device
+		hDevice,                       // handle to device
 		FSCTL_ALLOW_EXTENDED_DASD_IO,  // dwIoControlCode
 		NULL,                          // lpInBuffer
 		0,                             // nInBufferSize
 		NULL,                          // lpOutBuffer
 		0,                             // nOutBufferSize
-		&cbRet,				         // number of bytes returned
+		&cbRet,                        // number of bytes returned
 		NULL                           // OVERLAPPED structure
 	);
 
@@ -344,7 +344,7 @@ int format_volume(PCSTR vol, const format_params* params)
 	bRet = DeviceIoControl(hDevice, FSCTL_LOCK_VOLUME, NULL, 0, NULL, 0, &cbRet, NULL);
 
 	if (!bRet)
-		die("Failed to lock device");
+		die("Failed to lock device - close any files before formatting");
 
 
 	// work out drive params
@@ -459,11 +459,6 @@ int format_volume(PCSTR vol, const format_params* params)
 	pFAT32BootSect->dFATSz32 = FatSize;
 
 	pFAT32BootSect->dBS_VolID = VolumeId;
-	if (params->volume_label)
-	{
-		memset(pFAT32BootSect->sVolLab, ' ', sizeof(FAT_BOOTSECTOR32::sVolLab));
-		_memccpy(pFAT32BootSect->sVolLab, params->volume_label, '\0', sizeof(FAT_BOOTSECTOR32::sVolLab));
-	}
 	((BYTE*)pFAT32BootSect)[510] = 0x55;
 	((BYTE*)pFAT32BootSect)[511] = 0xaa;
 
@@ -507,7 +502,11 @@ int format_volume(PCSTR vol, const format_params* params)
 
 	// Sanity check for a cluster count of >2^28, since the upper 4 bits of the cluster values in 
 	// the FAT are reserved.
-	if (ClusterCount > 0x0FFFFFFF)
+	// Cluster 0x00000000     meaning unused
+	// Cluster 0x00000001     reserved
+	// Cluster 0x0FFFFFF7     bad cluster
+	// Cluster 0x0FFFFFF[8-F] end of cluster chain
+	if (ClusterCount > 0x0FFFFFF4)
 	{
 		die("This drive has more than 2^28 clusters, try to specify a larger cluster size or use the default (i.e. don't use -cXX)\n");
 	}
@@ -534,10 +533,6 @@ int format_volume(PCSTR vol, const format_params* params)
 	printf("Size : %gGB %lu sectors\n", (double)(piDrive.PartitionLength.QuadPart / (1000 * 1000 * 1000)), TotalSectors);
 	printf("%lu Bytes Per Sector, Cluster size %lu bytes\n", BytesPerSect, SectorsPerCluster*BytesPerSect);
 	printf("Volume ID is %04lx:%04lx\n", VolumeId >> 16, VolumeId & 0xffff);
-	if (params->volume_label)
-	{
-		printf("Volume Label is %.*s\n", (int)sizeof(FAT_BOOTSECTOR32::sVolLab), params->volume_label);
-	}
 	printf("%u Reserved Sectors, %lu Sectors per FAT, %u fats\n", pFAT32BootSect->wRsvdSecCnt, FatSize, pFAT32BootSect->bNumFATs);
 	printf("%llu Total clusters\n", ClusterCount);
 
@@ -574,20 +569,11 @@ int format_volume(PCSTR vol, const format_params* params)
 		write_sect(hDevice, SectorStart, BytesPerSect, pFirstSectOfFat, 1);
 	}
 
-	unsigned i = 0;
-	if (params->volume_label)
-	{
-		memcpy(pFAT32Directory[i].DIR_Name, pFAT32BootSect->sVolLab, sizeof(FAT_DIRECTORY::DIR_Name));
-		pFAT32Directory[i].DIR_Attr = FAT_DIRECTORY::ATTR_VOLUME_ID;
-		i++;
-	}
 	if (params->make_protected_autorun)
 	{
-		memcpy(pFAT32Directory[i].DIR_Name, "AUTORUN INF", sizeof(FAT_DIRECTORY::DIR_Name));
-		pFAT32Directory[i].DIR_Attr = FILE_ATTRIBUTE_DEVICE | FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM;
-		i++;
+		memcpy(pFAT32Directory[0].DIR_Name, "AUTORUN INF", sizeof(FAT_DIRECTORY::DIR_Name));
+		pFAT32Directory[0].DIR_Attr = FILE_ATTRIBUTE_DEVICE | FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM;
 	}
-	_ASSERTE(i < BytesPerSect / sizeof(FAT_DIRECTORY));
 	write_sect(hDevice, pFAT32BootSect->wRsvdSecCnt + pFAT32BootSect->bNumFATs * FatSize, BytesPerSect, pFAT32Directory, 1);
 
 	// The filesystem recogniser in Windows XP doesn't use the partition type - in can be 
@@ -633,7 +619,7 @@ int format_volume(PCSTR vol, const format_params* params)
 	// CloseDevice
 	CloseHandle(hDevice);
 
-	printf("Done");
+	puts("Done");
 
 	return TRUE;
 }
@@ -650,8 +636,8 @@ void usage(void)
 		"        EXAMPLE: Fat32Format -c4 X:  - use 4 sectors per cluster\n"
 		"    -l  Specify volume label.\n"
 		"        If exceeds 11-bytes, truncate label.\n"
-		"    -p  Make protected AUTORUN.INF on root directory.\n"
-		"        You can not open, read, write, rename, move or delete this file on Windows.\n"
+		"    -p  Make immutable AUTORUN.INF on root directory.\n"
+		"        This file cannot do anything on Windows.\n"
 		"    -y  Does not confirm before format.\n"
 		"\n"
 		"Modified Version see https://github.com/0xbadfca11/fat32format \n"
@@ -701,9 +687,19 @@ int main(int argc, char* argv[])
 			size_t len;
 			if ((len = strlen(argv[i])) >= 3)
 			{
-				if (len - 2/* -l */ > sizeof(FAT_BOOTSECTOR32::sVolLab))
-					puts("Warning: truncate volume label.");
-				p.volume_label = &argv[i][2];
+				switch (strncpy_s(p.volume_label, &argv[i][2], _TRUNCATE))
+				{
+				case 0:
+					break;
+				case STRUNCATE:
+					puts("Warning Volume label too long. Truncate volume label.");
+					break;
+				default:
+					perror("strncpy_s");
+					exit(EXIT_FAILURE);
+				}
+				if (p.volume_label[0] == '\xE5')
+					puts("Warning Volume label started with 0xE5. Available until unmount.");
 			}
 			else
 				usage();
@@ -726,9 +722,19 @@ int main(int argc, char* argv[])
 	}
 	std::cmatch match;
 	if (std::regex_match(argv[i], match, std::regex{ R"((?:\\\\\.\\)?([A-Z]):\\?)", std::regex::icase }))
-		format_volume(match.format(R"(\\.\$1:)").c_str(), &p);
-	else if (std::regex_match(argv[i], match, std::regex{ R"((\\\\\?\\Volume{[-A-Z0-9]+})\\?)", std::regex::icase }))
-		format_volume(match.format("$1").c_str(), &p);
+	{
+		auto vol = match.format(R"(\\.\$1:)");
+		format_volume(vol.c_str(), &p);
+		if (!SetVolumeLabelA(vol.append("\\").c_str(), p.volume_label))
+			die("Failed to set volume label");
+	}
+	else if (std::regex_match(argv[i], match, std::regex{ R"((\\\\\?\\Volume\{[A-Z0-9\-]+\})\\?)", std::regex::icase }))
+	{
+		auto vol = match.format("$1");
+		format_volume(vol.c_str(), &p);
+		if (!SetVolumeLabelA(vol.append("\\").c_str(), p.volume_label))
+			die("Failed to set volume label");
+	}
 	else
 		usage();
 }
