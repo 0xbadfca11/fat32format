@@ -25,12 +25,12 @@ Only accepts
     fat32format.exe \\?\Volume{GUID}
 
 ### Support volume label at format
-use -l. (lowercase of L)
+use -l.
 
 ### Without confirm
 use -y.
 
-### immutable AUTORUN.INF
+### Immutable AUTORUN.INF
 use -p.  
 You can not open, read, write, rename, move or delete on Windows OS.
 Only re-format can delete this. (or delete from non-Windows OS)
