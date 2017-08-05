@@ -651,6 +651,11 @@ void usage(void)
 
 int main(int argc, char* argv[])
 {
+	if (PVOID SetDefaultDllDirectoriesPtr = GetProcAddress(GetModuleHandleW(L"kernel32"), "SetDefaultDllDirectories"))
+	{
+		static_cast<decltype(SetDefaultDllDirectories)*>(SetDefaultDllDirectoriesPtr)(LOAD_LIBRARY_SEARCH_SYSTEM32);
+	}
+
 	if (argc < 2)
 	{
 		usage();
