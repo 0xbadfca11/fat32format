@@ -4,8 +4,8 @@
 // By using this tool, you agree to absolve Ridgecrop of an liabilities for lost data.
 // Please backup any data you value before using this tool.
 
-#define STRICT
 #define WIN32_LEAN_AND_MEAN
+#define STRICT_GS_ENABLED
 #define _CRT_SECURE_CPP_OVERLOAD_STANDARD_NAMES_MEMORY defined(_DEBUG)
 #define _CRT_SECURE_CPP_OVERLOAD_SECURE_NAMES_MEMORY   defined(_DEBUG)
 
@@ -83,10 +83,6 @@ struct FAT_DIRECTORY
 	uint16_t DIR_WrtDate;
 	uint16_t DIR_FstClusLO;
 	uint32_t DIR_FileSize;
-	enum : uint8_t
-	{
-		ATTR_VOLUME_ID = 0x8
-	};
 };
 static_assert(sizeof(FAT_DIRECTORY) == 32, "");
 
@@ -663,7 +659,7 @@ int main(int argc, char* argv[])
 
 	format_params p;
 	int i = 1;
-	while ((strlen(argv[i]) >= 2) && ((argv[i][0] == '-') || (argv[i][0] == '/')))
+	while (strlen(argv[i]) >= 2 && (argv[i][0] == '-' || argv[i][0] == '/'))
 	{
 		switch (argv[i][1])
 		{
