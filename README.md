@@ -1,6 +1,23 @@
 # fat32format
-Original fat32format is [here.](http://www.ridgecrop.demon.co.uk/fat32format.htm)  
-http://www.ridgecrop.demon.co.uk/fat32format.htm
+```
+Usage Fat32Format [-cN] [-lLABEL] [-p] [-y] X:
+Erase all data on disk X:, format it for FAT32
+
+    -c  Specify a cluster size by sector count.
+        Accepts 1, 2, 4, 8, 16, 32, 64, 128
+        EXAMPLE: Fat32Format -c4 X:  - use 4 sectors per cluster
+    -l  Specify volume label.
+        If exceeds 11-bytes, truncate label.
+    -p  Make immutable AUTORUN.INF on root directory.
+        This file cannot do anything on Windows.
+    -y  Does not confirm before format.
+
+Modified Version see https://github.com/0xbadfca11/fat32format 
+
+Original Version 1.07, see http://www.ridgecrop.demon.co.uk/fat32format.htm 
+This software is covered by the GPL 
+Use with care - Ridgecrop are not liable for data lost using this tool
+```
 
 ## Changes from original
 
@@ -37,9 +54,6 @@ Only re-format can delete this. (or delete from non-Windows OS)
 
 NOTE: This behavior is undocumented. 
 It does not guarantee also be the same behavior in the future.
-
-### Source no longer support VC++2013 or older.
-to be lazy.
 
 ## LICENSE
 GPL
