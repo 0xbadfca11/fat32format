@@ -527,7 +527,7 @@ int format_volume(_In_z_ LPCSTR vol, _In_ const format_params* params)
 
 	// Now we're commited - print some info first
 	printf("Size : %gGB %lu sectors\n", piDrive.PartitionLength.QuadPart / (1024.f * 1024.f * 1024.f), TotalSectors);
-	printf("%lu Bytes Per Sector, Cluster size %lu bytes\n", BytesPerSect, SectorsPerCluster*BytesPerSect);
+	printf("%lu Bytes Per Sector, Cluster size %lu bytes\n", BytesPerSect, SectorsPerCluster * BytesPerSect);
 	printf("Volume ID is %04lX:%04lX\n", pFAT32BootSect->dBS_VolID >> 16, pFAT32BootSect->dBS_VolID & 0xffff);
 	printf("%u Reserved Sectors, %lu Sectors per FAT, %u fats\n", ReservedSectCount, FatSize, NumFATs);
 
@@ -740,29 +740,7 @@ int main(int argc, char* argv[])
 		usage();
 	}
 
-	if (isalpha(volume_argv[0]) || strncmp(volume_argv, R"(\\.\)", 4) == 0)
-	{
-		char volume[8] = R"(\\.\?:)";
-		if (strcmp(&volume_argv[1], ":") == 0)
-		{
-			volume[4] = volume_argv[0];
-		}
-		else if (strlen(volume_argv) == 6 && isalpha(volume_argv[4]) && volume_argv[5] == ':')
-		{
-			volume[4] = volume_argv[4];
-		}
-		else
-		{
-			usage();
-		}
-		format_volume(volume, &p);
-		strcat_s(volume, "\\");
-		if (!SetVolumeLabelA(volume, p.volume_label))
-		{
-			die("Failed to set volume label");
-		}
-	}
-	else if (strncmp(volume_argv, R"(\\?\Volume{)", 11) == 0)
+	if (strncmp(volume_argv, R"(\\?\Volume{)", 11) == 0)
 	{
 		char volume_guid[50];
 		strcpy_s(volume_guid, volume_argv);
@@ -779,6 +757,24 @@ int main(int argc, char* argv[])
 	}
 	else
 	{
-		usage();
+		char volume[8] = R"(\\.\?:)";
+		if (strlen(volume_argv) == 2 && isalpha(volume_argv[0]) && volume_argv[1] == ':')
+		{
+			volume[4] = volume_argv[0];
+		}
+		else if (strlen(volume_argv) == 6 && strncmp(volume_argv, R"(\\.\)", 4) == 0 && isalpha(volume_argv[4]) && volume_argv[5] == ':')
+		{
+			volume[4] = volume_argv[4];
+		}
+		else
+		{
+			usage();
+		}
+		format_volume(volume, &p);
+		strcat_s(volume, "\\");
+		if (!SetVolumeLabelA(volume, p.volume_label))
+		{
+			die("Failed to set volume label");
+		}
 	}
 }
